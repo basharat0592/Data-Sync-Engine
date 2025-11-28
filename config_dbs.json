@@ -1,0 +1,89 @@
+{
+  "sqlserver": {
+    "driver": "ODBC Driver 17 for SQL Server",
+    "server": "IP,PORT",
+    "user": "USER",
+    "password": "PASSWORD"
+  },
+
+  "postgres": {
+    "host": "IP",
+    "port": "PORT",
+    "database": "DB",
+    "user": "USER",
+    "password": "PASSWORD"
+  },
+
+  "databases": [
+    "NewNowCertsLocal1",
+    "NewNowCertsLocal2",
+    "NewNowCertsLocal3",
+    "NewNowCertsLocal4",
+    "NewNowCertsLocal5",
+    "NewNowCertsLocal6",
+    "NewNowCertsLocal7",
+    "NewNowCertsLocal10",
+    "NewNowCertsLocal11",
+    "NewNowCertsLocal12",
+    "NewNowCertsLocal14",
+    "NewNowCertsLocal15",
+    "NewNowCertsLocal16",
+    "NewNowCertsLocal17",
+    "NewNowCertsLocal19",
+    "NewNowCertsLocal21",
+    "NewNowCertsLocal23"
+  ],
+
+  "tables": [
+    {
+      "source": "dbo.InsuranceAgencies",
+      "target": "domain.agencies",
+      "pk": "Id",
+      "incremental_column": "ChangeDate",
+      "include_db_name": false,
+      "columns": {
+        "Id": "momentum_agency_id",
+        "Name": "agency_name",
+        "AddressLine1": "address_line1",
+        "AddressLine2": "address_line2",
+        "Phone": "phone",
+        "CellPhone": "mobile_number",
+        "Fax": "fax",
+        "EMail": "email",
+        "ChangeDate": "updated_at",
+        "CreateDate": "created_at",
+        "ZipCode": "zip_code",
+        "City": "city",
+        "Active": "is_active",
+        "LicenseNumber": "license_number",
+        "HasSubscription": "has_subscription",
+        "AgentsSlots": "agency_slots",
+        "URL": "url",
+        "IvansAccount": "ivans_account"
+      }
+    },
+    {
+      "source": "dbo.Agents",
+      "target": "domain.agency_agents",
+      "pk": "Id",
+      "incremental_column": "ChangeDate",
+      "include_db_name": true,
+      "transform": {
+            "agency_id": "lookup_agency_id"
+      },
+      "columns": {
+        "FirstName": "first_name",
+        "LastName": "last_name",
+        "EMail": "email",
+        "Phone": "phone",
+        "CellPhone": "mobile_number",
+        "LicenseNumber": "license_number",
+        "IsAgencyOwner": "is_primary",
+        "Active": "is_active",
+        "CreateDate": "created_at",
+        "ChangeDate": "updated_at",
+        "UserId": "updated_by"
+      }
+    }
+  ]
+}
