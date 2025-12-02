@@ -57,7 +57,6 @@ def preload_agency_mappings(db_name: str):
         guid_str = str(guid).strip().upper().replace("{", "").replace("}", "")
         agency_id_cache[guid_str] = int(pg_id)
         count += 1
-    print(f"Loaded {count} agencies")
 
 def clean_phone(row_dict: dict, db_name: str) -> str:
     """Remove phone extensions like 'Ext. 104' so it fits in varchar(20)"""
@@ -83,58 +82,45 @@ def lookup_agency_id(row_dict: dict, db_name: str) -> int:
         raise ValueError(f"Agency not found: InsuranceAgencyId={guid_str} (db: {db_name})")
     return pg_id
 
-# cache for SQL Server states keyed by GUID string (uppercase, no braces)
-state_cache = {}   # { GUID: abbreviation_or_NA }
+# cache for SQL Server states keyed by normalized GUID (32-char hex)
+state_cache = {}  # { GUID32: abbreviation }
 
 def load_state_cache(sql_cursor):
     """
-    Load SQL Server states table into cache once.
-    Expected columns: Id (uniqueidentifier), Name, AbbreviationCode.
+    Load SQL Server state IDs and abbreviations into memory.
+    Includes debug prints to confirm loaded key formats.
     """
-    global state_cache
-
     sql_cursor.execute("SELECT Id, AbbreviationCode FROM states")
     rows = sql_cursor.fetchall()
 
     for row in rows:
         raw_id = row[0]
-        abbr = row[1]
-
-        # Convert SQL Server uniqueidentifier to uppercase string key
-        if isinstance(raw_id, (bytes, bytearray)):
-            guid_str = ''.join(f'{b:02x}' for b in raw_id).upper()
+        abbr = row[1] if row[1] else "NA"
+        if raw_id:
+            state_cache[raw_id] = abbr
         else:
-            guid_str = str(raw_id).strip().upper().replace("{", "").replace("}", "")
-
-        # If AbbreviationCode is NULL → use "NA"
-        state_cache[guid_str] = abbr if abbr else "NA"
+            print("[WARN] Value NULL:", raw_id)
 
 
 def state_abbreviation_lookup(row_dict: dict, db_name: str) -> str:
     """
-    Look up the state abbreviation from cached states.
-    Input row_dict must contain 'StateId'.
-    Returns abbreviation, or 'NA' if NULL or not found.
+    Lookup state abbreviation
     """
     raw = row_dict.get("StateId")
+    abbr = state_cache.get(raw)
+    return abbr if abbr else "NA"
 
-    # If NULL in source return NA
-    if not raw:
-        return "NA"
-
-    # Normalize GUID format
-    if isinstance(raw, (bytes, bytearray)):
-        guid_str = ''.join(f'{b:02x}' for b in raw).upper()
-    else:
-        guid_str = str(raw).strip().upper().replace("{", "").replace("}", "")
-
-    # Lookup
-    abbr = state_cache.get(guid_str)
-    if abbr is None:
-        # not found in states table → treat as NA
-        return "NA"
-
-    return abbr
+sql_state_conn_str = (
+    f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+    f"SERVER={sql_conf['server']};"
+    "DATABASE=NewNowCertsLocal1;"
+    f"UID={sql_conf['user']};"
+    f"PWD={sql_conf['password']};"
+    f"TrustServerCertificate=yes;"
+)
+sql_state_conn = pyodbc.connect(sql_state_conn_str, autocommit=False)
+cursor = sql_state_conn.cursor()
+load_state_cache(cursor)
 
 TRANSFORMS = {
     "lookup_agency_id": lookup_agency_id,
