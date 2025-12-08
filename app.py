@@ -43,6 +43,10 @@ pg_cur = pg_conn.cursor()
 # -------------------------
 agency_id_cache: Dict[str, int] = {}
 
+# Global Insured Cache (GUID → insured_id)
+insured_id_cache: Dict[str, int] = {}
+
+
 def preload_agency_mappings(db_name: str):
     global agency_id_cache
     agency_id_cache.clear()
@@ -58,6 +62,29 @@ def preload_agency_mappings(db_name: str):
         agency_id_cache[guid_str] = int(pg_id)
         count += 1
 
+def preload_insured_mappings(db_name: str):
+    """
+    Preload insured GUID → insured_id mappings into memory.
+    Must run before syncing tables that need insured lookup.
+    """
+    global insured_id_cache
+    insured_id_cache.clear()
+    print(f"  Preloading insured mappings for {db_name}...", end=" ")
+
+    pg_cur.execute("""
+        SELECT momentum_insured_id, insured_id 
+        FROM domain.insureds
+        WHERE db_name = %s AND momentum_insured_id IS NOT NULL
+    """, (db_name,))
+
+    count = 0
+    for guid, pg_id in pg_cur.fetchall():
+        guid_str = str(guid).strip().upper().replace("{", "").replace("}", "")
+        insured_id_cache[guid_str] = int(pg_id)
+        count += 1
+
+    print(f"loaded {count}")
+
 def clean_phone(row_dict: dict, db_name: str) -> str:
     """Remove phone extensions like 'Ext. 104' so it fits in varchar(20)"""
     val = row_dict.get("Phone") or row_dict.get("CellPhone") or ""
@@ -68,6 +95,10 @@ def clean_phone(row_dict: dict, db_name: str) -> str:
         if pattern in s:
             s = s.split(pattern, 1)[0]  # split only once
     return s.strip()
+
+def clean_zipcode(row_dict: dict, db_name: str) -> str:
+    val = row_dict.get("ZipCode") or ""
+    return str(val).strip()[:20]
 
 def lookup_agency_id(row_dict: dict, db_name: str) -> int:
     raw = row_dict.get("InsuranceAgencyId")
@@ -80,6 +111,24 @@ def lookup_agency_id(row_dict: dict, db_name: str) -> int:
     pg_id = agency_id_cache.get(guid_str)
     if pg_id is None:
         raise ValueError(f"Agency not found: InsuranceAgencyId={guid_str} (db: {db_name})")
+    return pg_id
+
+def lookup_insured_id(row_dict: dict, db_name: str) -> int:
+    raw = row_dict.get("TruckingCompanyId")
+
+    if not raw:
+        raise ValueError(f"Record {row_dict.get('Id')} has NULL InsuredId in {db_name}")
+
+    # Normalize GUID (handle bytes, uniqueidentifier, char, etc.)
+    if isinstance(raw, (bytes, bytearray)):
+        guid_str = ''.join(f'{b:02x}' for b in raw).upper()
+    else:
+        guid_str = str(raw).strip().upper().replace("{", "").replace("}", "")
+
+    pg_id = insured_id_cache.get(guid_str)
+    if pg_id is None:
+        raise ValueError(f"Insured not found: InsuredId={guid_str} (db: {db_name})")
+
     return pg_id
 
 # cache for SQL Server states keyed by normalized GUID (32-char hex)
@@ -124,7 +173,9 @@ load_state_cache(cursor)
 
 TRANSFORMS = {
     "lookup_agency_id": lookup_agency_id,
+    "lookup_insured_id": lookup_insured_id,
     "clean_phone": clean_phone,
+    "zipcode": clean_zipcode,
     "state_abbreviation_lookup": state_abbreviation_lookup
 }
 
@@ -249,12 +300,19 @@ def stream_source_to_target(
         for row in rows:
             row_dict = dict(zip(source_cols, row))
 
+            if source_table == "dbo.TruckingCompanyContacts" and not row_dict.get("TruckingCompanyId"):
+                continue  # skip this row entirely
+
             # Apply transforms
             transformed = {}
             if transforms:
                 for tgt_col, func_name in transforms.items():
                     if func_name in TRANSFORMS:
-                        transformed[tgt_col] = TRANSFORMS[func_name](row_dict, db_name)
+                        try:
+                            transformed[tgt_col] = TRANSFORMS[func_name](row_dict, db_name)
+                        except ValueError as e:
+                            print(f"[WARN] {e} -- setting {tgt_col} = None")
+                            transformed[tgt_col] = None
 
             # Build mapped row
             mapped_row = {}
@@ -296,6 +354,9 @@ def sync_table(db_name: str, table_config: dict):
     if source == "dbo.Agents":
         preload_agency_mappings(db_name)
 
+    if source == "dbo.TruckingCompanyContacts":
+        preload_insured_mappings(db_name)        
+
     last_sync = get_last_sync(db_name, source)
     full_load = last_sync is None
 
@@ -328,7 +389,7 @@ def main():
     ensure_sync_state_table()
     print("Starting sync...\n")
     start = time.time()
-
+    
     for db_name in config["databases"]:
         print(f"\n=== Processing Database: {db_name} ===")
         for table_config in config["tables"]:
