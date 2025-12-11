@@ -35,6 +35,166 @@
   ],
 
   "tables": [
+    {
+      "source": "dbo.InsuranceAgencies",
+      "target": "domain.agencies",
+      "pk": "Id",
+      "incremental_column": "ChangeDate",
+      "include_db_name": true,
+      "columns": {
+        "Id": "momentum_agency_id",
+        "Name": "agency_name",
+        "AddressLine1": "address_line1",
+        "AddressLine2": "address_line2",
+        "Phone": "phone",
+        "CellPhone": "mobile_number",
+        "Fax": "fax",
+        "EMail": "email",
+        "ChangeDate": "updated_at",
+        "CreateDate": "created_at",
+        "ZipCode": "zip_code",
+        "City": "city",
+        "Active": "is_active",
+        "LicenseNumber": "license_number",
+        "HasSubscription": "has_subscription",
+        "AgentsSlots": "agency_slots",
+        "URL": "url",
+        "IvansAccount": "ivans_account"
+      }
+    },
+    {
+      "source": "dbo.Agents",
+      "target": "domain.agency_agents",
+      "pk": "Id",
+      "incremental_column": "ChangeDate",
+      "include_db_name": false,
+      "transform": {
+            "agency_id": "lookup_agency_id",
+            "phone": "clean_phone",
+            "mobile_number": "clean_phone"
+      },
+      "default_values": {
+        "role_name": "Agent",
+        "first_name": "Agent",
+        "last_name": "Agent"
+      },
+      "columns": {
+        "InsuranceAgencyId": "agency_id",
+        "FirstName": "first_name",
+        "LastName": "last_name",
+        "EMail": "email",
+        "Phone": "phone",
+        "CellPhone": "mobile_number",
+        "LicenseNumber": "license_number",
+        "IsAgencyOwner": "is_primary",
+        "Active": "is_active",
+        "CreateDate": "created_at",
+        "ChangeDate": "updated_at",
+        "UserId": "updated_by"
+      }
+    },
+    {
+      "source": "dbo.AgencyAddresses",
+      "target": "domain.agency_locations",
+      "pk": "Id",
+      "incremental_column": "ChangeDate",
+      "include_db_name": false,
+      "transform": {
+            "agency_id": "lookup_agency_id",
+            "state": "state_abbreviation_lookup",
+            "mailing_address_state": "state_abbreviation_lookup"
+      },
+      "default_values": {
+        "address_line1": "NA",
+        "city": "NA",
+        "zip_code": "NA"
+      },
+      "columns": {
+        "InsuranceAgencyId": "agency_id",
+        "LocationName": "location_name",
+        "AddressLine1": "address_line1",
+        "AddressLine2": "address_line2",
+        "City": "city",
+        "StateId": "state",
+        "ZipCode": "zip_code",
+        "MailingAddress1": "mailing_address_line1",
+        "MailingAddress2": "mailing_address_line2",
+        "MailingAddressCity": "mailing_address_city",
+        "MailingAddressZip": "mailing_address_zip_code",
+        "MailingAddressStateId": "mailing_address_state",
+        "Phone": "phone",
+        "Fax": "fax",
+        "Email": "email",
+        "CreateDate": "created_at",
+        "ChangeDate": "updated_at",
+        "Active": "is_active",
+        "LastChangeUserId": "updated_by",
+        "ContactPerson": "created_by"
+      }
+    },
+    {
+      "source": "dbo.TruckingCompanies",
+      "target": "domain.insureds",
+      "pk": "Id",
+      "incremental_column": "ChangeDate",
+      "include_db_name": true,
+      "transform": {
+          "agency_id": "lookup_agency_id",
+          "statecode": "state_abbreviation_lookup",
+          "zipcode": "clean_zipcode"
+      },
+      "default_values": {
+      },
+      "columns": {
+        "Id": "momentum_insured_id",
+        "Name": "insured_company_name",
+        "PersonalType_FirstName": "first_name",
+        "PersonalType_LastName": "last_name",
+        "InsuredType": "insured_type",
+        "Type": "insured_business_class",
+        "EMail": "primary_email",
+        "AddressLine1": "addressline1",
+        "AddressLine2": "addressline2",
+        "StateId": "statecode",
+        "ZipCode": "zipcode",
+        "Phone": "phone",
+        "CellPhone": "cell_phone",
+        "InsuranceAgencyId": "agency_id", 
+        "Active": "is_active",
+        "CreateDate": "created_at",
+        "ChangeDate": "updated_at",
+        "LastChangeUserId": "updated_by",
+        "CreatorUserId": "created_by"
+      }
+    },
+    {
+      "source": "dbo.TruckingCompanyContacts",
+      "target": "domain.insured_contacts",
+      "pk": "Id",
+      "incremental_column": "ChangeDate",
+      "include_db_name": false,
+      "transform": {
+          "insured_id": "lookup_insured_id"
+      },
+      "default_values": {
+      },
+      "columns": {
+        "TruckingCompanyId": "insured_id",
+        "Type": "contact_type",
+        "FirstName": "first_name",
+        "LastName": "last_name",
+        "PersonalEMail": "email",
+        "HomePhone": "phone",
+        "CellPhone": "cell_phone",
+        "Primary": "is_primary_contact",
+        "Active": "is_active",
+        "Birthday": "insured_birthday",
+        "Note": "notes",
+        "CreateDate": "created_at",
+        "ChangeDate": "updated_at",
+        "LastChangeUserId": "updated_by"
+      }
+    },
  		{
       "source": "dbo.Policies",
       "target": "domain.policies",
