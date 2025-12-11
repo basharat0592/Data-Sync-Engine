@@ -402,7 +402,7 @@ def sync_table(db_name: str, table_config: dict):
 # -------------------------
 def main():
     ensure_sync_state_table()
-    print("FINAL SYNC – THIS ONE WORKS 100%\n")
+    print("SYNC STARTED ...\n")
     start = time.time()
 
     for db_name in config["databases"]:
