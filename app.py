@@ -217,7 +217,7 @@ def copy_chunk_to_target(target_table: str, columns: List[str], rows: List[Dict[
         writer.writerow(values)
 
     buf.seek(0)
-    print(f"Copying {len(rows)} rows to PostgreSQL table {target_table} (this may take a while for large chunks)...")
+    print(f"Copying {len(rows)} rows to PostgreSQL table {target_table} ...")
     pg_cur.copy_expert(f"COPY {target_table} ({', '.join(final_cols)}) FROM STDIN WITH (FORMAT csv, NULL '')", buf)
     pg_conn.commit()
     buf.close()
@@ -317,7 +317,7 @@ def stream_source_to_target(
             if chunk:
                 copy_chunk_to_target(target_table, target_columns, chunk, include_db_name, db_name)
                 total += len(chunk)
-                print(f"   Copied {total:,} rows (computed fields filled)")
+                print(f"   Copied {total:,} rows")              
             break
         print(f"Fetched {len(rows)} rows from source.")
         for row in rows:
@@ -408,7 +408,7 @@ def sync_table(db_name: str, table_config: dict):
 # -------------------------
 def main():
     ensure_sync_state_table()
-    print(f"SYNC STARTED at {time.time()}...\n")
+    print(f"\nSYNC STARTED at {time.time()}...\n")
     start = time.time()
 
     for db_name in config["databases"]:
