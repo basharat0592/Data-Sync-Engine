@@ -107,6 +107,7 @@ def load_state_cache(sql_cursor):
     Load SQL Server state IDs and abbreviations into memory.
     Includes debug prints to confirm loaded key formats.
     """
+    print(f"  Preloading states from database...", end=" ")
     sql_cursor.execute("SELECT Id, AbbreviationCode FROM states")
     rows = sql_cursor.fetchall()
 
@@ -192,6 +193,7 @@ def query_source_max(source_table: str, inc_col: str) -> Optional[datetime]:
 def copy_chunk_to_target(target_table: str, columns: List[str], rows: List[Dict[str, Any]], include_db_name: bool, db_name: str):
     if not rows:
         return
+    print(f"Preparing to copy {len(rows)} rows into {target_table}...")
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n", quoting=csv.QUOTE_MINIMAL)
     final_cols = columns + (["db_name"] if include_db_name else [])
@@ -215,9 +217,11 @@ def copy_chunk_to_target(target_table: str, columns: List[str], rows: List[Dict[
         writer.writerow(values)
 
     buf.seek(0)
+    print(f"Copying {len(rows)} rows to PostgreSQL table {target_table} (this may take a while for large chunks)...")
     pg_cur.copy_expert(f"COPY {target_table} ({', '.join(final_cols)}) FROM STDIN WITH (FORMAT csv, NULL '')", buf)
     pg_conn.commit()
     buf.close()
+    print(f"Finished copying {len(rows)} rows into {target_table}")
 
 # -------------------------
 # MAIN: Only change = computed columns for Policies
@@ -235,6 +239,7 @@ def stream_source_to_target(
     transforms: Optional[Dict[str, str]] = None,
     table_config: dict = None
 ):
+    print(f"\nStreaming from {source_table} → {target_table} (chunk size: {chunk_size})")
     sqlserver_use_db(db_name)
     cur = sql_conn.cursor()
     cur.arraysize = chunk_size
@@ -314,7 +319,7 @@ def stream_source_to_target(
                 total += len(chunk)
                 print(f"   Copied {total:,} rows (computed fields filled)")
             break
-
+        print(f"Fetched {len(rows)} rows from source.")
         for row in rows:
             row_dict = dict(zip(final_source_cols, row))
 
@@ -352,6 +357,7 @@ def stream_source_to_target(
             chunk = []
 
     cur.close()
+    print(f"Finished streaming {total:,} rows from {source_table} → {target_table}")
     return total
 
 # -------------------------
@@ -402,7 +408,7 @@ def sync_table(db_name: str, table_config: dict):
 # -------------------------
 def main():
     ensure_sync_state_table()
-    print("SYNC STARTED ...\n")
+    print(f"SYNC STARTED at {time.time()}...\n")
     start = time.time()
 
     for db_name in config["databases"]:
